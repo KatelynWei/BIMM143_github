@@ -1,0 +1,246 @@
+---
+title: "Class 10 Lab Pt. 2"
+author: "Katelyn Wei (PID: A16682595)"
+format: pdf
+---
+
+# Comparative Structure Analysis of Adenylate Kinase
+
+We need some packages for today's class. These include `bio3d` and `msa`.
+
+the `msa` package is from BioConductor. These packages focus on genomics type work and are managed by the `BiocManager` package.
+
+Install `install.packages("BiocManager")` and then `BiocManager::install("msa")` in the R console.
+
+We can use bio3d's `get.seq()` function to call up a FASTA sequence.
+```{r}
+library(bio3d)
+
+aa <- get.seq("1ake_A")
+aa
+```
+
+We can now search the PDB database for related sequences with `blast.pdb()`:
+```{r}
+#b <- blast.pdb(aa)
+```
+
+We can plot b to see our search results:
+```{r}
+#hits <- plot(b)
+```
+
+Our BLAST results are stored in hit.tbl:
+```{r}
+#attributes(b)
+#b$hit.tbl
+```
+
+These are the related structures in the PDB database that we found via a BLAST search...
+```{r}
+hits <- NULL
+hits$pdb.id <- c('1AKE_A','6S36_A','6RZE_A','3HPR_A','1E4V_A','5EJE_A','1E4Y_A','3X2S_A','6HAP_A','6HAM_A','4K46_A','3GMT_A','4PZL_A')
+
+hits$pdb.id
+```
+
+Sidenote: Let's annotate these structures (in other words find out what they are, what species they're from, stuff about the experiment they were solved in, etc.) so they're not just faceless IDs.
+
+For this we can use the `pdb.annotate()` function:
+
+```{r}
+anno <- pdb.annotate(hits$pdb.id)
+```
+
+```{r}
+#attributes(anno)
+head(anno)
+```
+
+Now we can download all these structures for further analysis with the `get.pdb()` function. The gzip argument compresses the file and the path argument determines where the files will be stored. 
+
+```{r}
+# Download releated PDB files
+files <- get.pdb(hits$pdb.id, path="pdbs", split=TRUE, gzip=TRUE)
+```
+
+Now we have all these structures we can align and superpose using the `pdaln()` function.
+```{r}
+# Align related PDBs
+pdbs <- pdbaln(files, fit = TRUE, exefile="msa")
+```
+
+```{r}
+pc.xray <- pca(pdbs)
+plot(pc.xray)
+```
+
+```{r}
+# Visualize first principal component
+pc1 <- mktrj(pc.xray, pc=1, file="pc_1.pdb")
+```
+
+# Protein Structure Prediction with AlphaFold
+
+Molstar Monomer Structure:
+![](HIVPR_MONOMER.png)
+
+## Custom Analysis of Resulting Models
+```{r}
+results_dir <- "hivpr_dimer_23119/"
+
+#Creating a list of all PDB file names
+pdb_files <- list.files(path = results_dir, pattern = "*.pdb", full.names = TRUE)
+
+basename(pdb_files)
+```
+
+```{r}
+# Align PDB file sequences and superpose/fit coords
+pdbs <- pdbaln(pdb_files, fit=TRUE, exefile="msa")
+```
+
+```{r}
+# Calculate RMSD between all pairs models
+rd <- rmsd(pdbs, fit = T)
+range(rd)
+```
+
+```{r}
+# Drawing a Heat map (need to install "pheatmap")
+library(pheatmap)
+
+colnames(rd) <- paste0("m",1:5)
+rownames(rd) <- paste0("m",1:5)
+pheatmap(rd)
+```
+
+Plotting pLDDLT values across all models:
+```{r}
+# Reading a reference PDB structure
+pdb <- read.pdb("1hsg")
+
+# Creating the plot(pLDDT values stored in b column of pdbs)
+plotb3(pdbs$b[1,], typ="l", lwd=2, sse=pdb)
+points(pdbs$b[2,], typ="l", col="red")
+points(pdbs$b[3,], typ="l", col="blue")
+points(pdbs$b[4,], typ="l", col="darkgreen")
+points(pdbs$b[5,], typ="l", col="orange")
+abline(v=100, col="gray")
+```
+
+It looks like models 3-5 are more similar to each other than models 1 and 2. Using the `core.find()` function can improve the superposition by finding the most consistent "rigid" core common across all models.
+```{r}
+core <- core.find(pdbs)
+```
+
+```{r}
+core.inds <- print(core, vol=0.5)
+```
+
+```{r}
+# Fitting found core atoms and putting them in a new directory
+xyz <- pdbfit(pdbs, core.inds, outpath="corefit_structures")
+```
+
+![](HIVPR_DIMER_23119_COREFIT.png)
+
+Examining RMSF(measures conformational variance along a structure):
+```{r}
+rf <- rmsf(xyz)
+
+plotb3(rf, sse=pdb)
+abline(v=100, col="gray", ylab="RMSF")
+```
+
+There is little variance across the first chain but a lot across the second.
+
+### Predicted Alignment Error for Domains
+
+AlphaFold also outputs Predicted Alignment Error (PAE). To read these files we'll need to use the JSON lite package:
+
+```{r}
+library(jsonlite)
+
+# Listing of all PAE JSON files
+pae_files <- list.files(path=results_dir,
+                        pattern=".*model.*\\.json",
+                        full.names = TRUE)
+```
+
+```{r}
+# Reading the files
+pae1 <- read_json(pae_files[1],simplifyVector = TRUE)
+pae2 <- read_json(pae_files[2],simplifyVector = TRUE)
+pae3 <- read_json(pae_files[3],simplifyVector = TRUE)
+pae4 <- read_json(pae_files[4],simplifyVector = TRUE)
+pae5 <- read_json(pae_files[5],simplifyVector = TRUE)
+
+attributes(pae1)
+```
+
+A lower max PAE score means a better model. We can see here that model 1 is the best model and model 3 is the worst my a slight margin. There's a noticeable gap in PAE scores between the first two and last 3 models.
+
+```{r}
+pae1$max_pae
+pae2$max_pae
+pae3$max_pae
+pae4$max_pae
+pae5$max_pae
+```
+
+We can plot the N by N (where N is the number of residues) PAE scores with ggplot or with functions from the Bio3D package. Take care to use the same data range for each plot:
+
+```{r}
+# Creating a distance matrix
+plot.dmat(pae1$pae, 
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)",
+          grid.col = "black",
+          zlim=c(0,30))
+```
+
+```{r}
+plot.dmat(pae5$pae, 
+          xlab="Residue Position (i)",
+          ylab="Residue Position (j)",
+          grid.col = "black",
+          zlim=c(0,30))
+```
+
+### Residue Conservation from Alignment File
+
+```{r}
+aln_file <- list.files(path=results_dir,
+                       pattern=".a3m$",
+                        full.names = TRUE)
+aln_file
+```
+
+```{r}
+aln <- read.fasta(aln_file[1], to.upper = TRUE)
+```
+
+Scoring residue conservation in the alignment with the `conserv()` function:
+```{r}
+sim <- conserv(aln)
+
+# plotting the scores
+plotb3(sim[1:99], sse=trim.pdb(pdb, chain="A"),
+       ylab="Conservation Score")
+```
+
+There are some highly conserved sites between 20 and 30. Using a high cutoff value in the `consensus()` function can highlight them:
+```{r}
+con <- consensus(aln, cutoff = 0.9)
+con$seq
+```
+Now we can see they're D25, T26, G27 and A28. We can generate a new image that includes this information by mapping this conservation score onto the Occupancy column of a PDB file:
+```{r}
+m1.pdb <- read.pdb(pdb_files[1])
+occ <- vec2resno(c(sim[1:99], sim[1:99]), m1.pdb$atom$resno)
+write.pdb(m1.pdb, o=occ, file="m1_conserv.pdb")
+```
+
+Final image:
+![](M1_CONSERV.PDB.png)

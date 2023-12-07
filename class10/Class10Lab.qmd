@@ -1,0 +1,106 @@
+---
+title: "Class 10: Structural Bioinformatics Pt. 1"
+author: "Katelyn Wei (PID: A16682595)"
+format: pdf
+---
+
+# Intro to the PDB Database
+
+Download a CSV file from the PDB site (accessible from “Analyze” > “PDB Statistics” > “by Experimental Method and Molecular Type”. Move this CSV file into your RStudio project: 
+
+https://tinyurl.com/statspdb
+```{r}
+stats <- read.csv("PDBstats.csv", row.names = 1)
+stats
+```
+
+The numbers have commas, making them read as characters. You can use `gsub()` and `as.numeric()` together to change this:
+```{r}
+x <- stats$X.ray
+```
+
+```{r}
+  as.numeric( gsub(",", "", x) )
+```
+
+```{r}
+# Turning it into a function
+rm.comma <- function(x) {
+  as.numeric( gsub(",", "", x) )
+}
+```
+
+```{r}
+# Apply it to stats
+pdbstats <- apply(stats, 2, rm.comma)
+pdbstats
+```
+
+**Q1: What percentage of structures in the PDB are solved by X-Ray and Electron Microscopy?**
+```{r}
+# Total number of structures
+totals <- apply(pdbstats, 2, sum)
+
+# Calculating the percentage for each
+round((totals/totals["Total"]) * 100, 2)
+```
+
+**Q2: What proportion of structures in the PDB are protein?**
+```{r}
+(pdbstats[1, "Total"] /sum(pdbstats[,"Total"])) * 100
+```
+
+
+**Q3: Type HIV in the PDB website search box on the home page and determine how many HIV-1 protease structures are in the current PDB?**
+
+211,377 structures.
+
+
+**Q4: Water molecules normally have 3 atoms. Why do we see just one atom per water molecule in this structure?**
+
+Because hydrogen atoms are too tiny to visualize.
+
+
+**Q5: There is a critical “conserved” water molecule in the binding site. Can you identify this water molecule? What residue number does this water molecule have?**
+
+Water 308(the big red circle near MK1 in the photo below).
+
+
+**Q6: Generate and save a figure clearly showing the two distinct chains of HIV-protease along with the ligand. You might also consider showing the catalytic residues ASP 25 in each chain and the critical water (we recommend “Ball & Stick” for these side-chains). Add this figure to your Quarto document.**
+
+![](1HSG.png)
+
+
+*Discussion Topic: Can you think of a way in which indinavir, or even larger ligands and substrates, could enter the binding site?*
+
+The protein probably has other configurations that allow larger ligands to enter the binding site.
+
+
+# The bio3d Package for Structural Bioinformatics
+
+```{r}
+library(bio3d)
+
+pdb <- read.pdb("1HSG")
+pdb
+```
+
+```{r}
+head(pdb$atom)
+```
+
+# Predicting Functional Motions in a Singule Structure
+
+Let's finish today with a bioinformatics model showing how this protein moves.
+
+```{r}
+adk <- read.pdb("6s36")
+m <- nma(adk)
+```
+
+```{r}
+plot(m)
+mktrj(m, file="adk_m7.pdb")
+```
+
+

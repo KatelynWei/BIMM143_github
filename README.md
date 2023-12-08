@@ -12,5 +12,5 @@ My classwork for F23 in [BIMM143](https://bioboot.github.io/bimm143_F23/) at UC 
 - Class 13: [DESeq](https://github.com/KatelynWei/BIMM143_github/blob/main/class13/class13lab.md)
 - Class 14: [RNA-Seq Mini Project](https://github.com/KatelynWei/BIMM143_github/blob/main/class14/class14miniproject.md)
 - Class 17: [Unix Basics](https://github.com/KatelynWei/BIMM143_github/blob/main/class17/class17HW.md)
-- Class 18: [Extra Credit: Analyzing Sequencing Data](https://github.com/KatelynWei/BIMM143_github/blob/main/class18/class18.md)
-- Class 19: []()
+- Class 18: [Extra Credit - Analyzing Sequencing Data](https://github.com/KatelynWei/BIMM143_github/blob/main/class18/class18.md)
+- Class 19: [Investigating Pertussis Resurgence](https://github.com/KatelynWei/BIMM143_github/blob/main/class19/class19lab.md)
